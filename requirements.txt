@@ -1,0 +1,17 @@
+torch~=2.3.0+cu121
+numpy~=1.26.3
+torchvision~=0.18.0+cu121
+pillow~=10.4.0
+opencv-python~=4.10.0.84
+dominate~=2.9.1
+requests~=2.31.0
+beautifulsoup4~=4.12.3
+wandb~=0.16.6
+tqdm~=4.66.4
+thop~=0.1.1-2209072238
+torchinfo~=1.8.0
+PyYAML~=6.0.1
+matplotlib~=3.8.4
+pandas~=2.2.2
+seaborn~=0.13.2
+psutil~=5.9.8

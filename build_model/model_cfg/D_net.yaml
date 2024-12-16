@@ -1,0 +1,49 @@
+
+nc: 1
+depth_multiple: 1  # model depth multiple
+width_multiple: 1  # layer channel multiple
+anchors:
+  - []
+
+
+encoder:
+  # [from, number, module, args]
+  [
+    [-1, 1, nn.Identity, []],                                                           # 0
+    [-1, 1, GetPartFeatures, [0,1]],                                                    # 1       1
+    [-1, 1, Conv, [64*2, 4,2,1,1 ,1 ,'nn.LeakyReLU(0.2,True)','instance']],             # 2     1/2
+    [-1, 1, Conv, [64*4, 4,2,1,1 ,1 ,'nn.LeakyReLU(0.2,True)','instance']],             # 3     1/4
+    [-1, 1, Conv, [64*8, 4,2,1,1 ,1 ,'nn.LeakyReLU(0.2,True)','instance']],             # 4     1/8
+
+    [ 0, 1, GetPartFeatures, [ 1,-1 ] ],                                                    # 6     1
+    [ -1, 1, Conv, [ 16, 4,2,1,1 ,1 ,'nn.LeakyReLU(0.2,True)','instance' ] ],             # 7     1/2
+    [ -1, 1, Conv, [ 64, 4,2,1,1 ,1 ,'nn.LeakyReLU(0.2,True)','instance' ] ],             # 8     1/4
+    [ -1, 1, Conv, [ 64*2, 4,2,1,1 ,1 ,'nn.LeakyReLU(0.2,True)','instance' ] ],             # 9     1/8
+    [ -1, 1, Conv, [ 64*8, 1, 1, 0,1 ,1 ,'nn.LeakyReLU(0.2,True)','instance' ] ],           # 11
+
+    [ [ 4,-1 ], 1, AddFeature, [[0.2] ] ],                                               # 12
+    [ -1, 3, C3, [ 64*8,  True, 1, 0.5,'nn.LeakyReLU(0.2,True)','instance' ] ],
+
+
+    [-1, 1, Conv, [ 64*2,3,1,1,1 ,1 ,'nn.LeakyReLU(0.2,True)','instance' ] ],             # 4     1/8
+    [-1, 1, Conv, [ 64,3,1,1,1 ,1 ,'nn.LeakyReLU(0.2,True)','instance' ] ],             # 4     1/8
+    [-1, 1, nn.Conv2d, [64, 1,3,1,1,] ],                                        # 5     1/8
+
+
+  ]
+
+
+
+decoder:
+  # [from, number, module, args]
+  [
+
+    ]
+
+
+
+
+
+
+
+
