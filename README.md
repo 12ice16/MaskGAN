@@ -5,7 +5,9 @@ This project implements an image processing system based on a custom Generative 
 
 Key Features:
 Automatic Crack and Mask Generation: The GAN model processes input images and automatically detects and generates crack regions along with their corresponding masks.
+
 Background Consistency: The generated crack regions seamlessly blend with the background, ensuring that the areas outside the cracks remain identical to the original image.
+
 No Manual Annotation Required: With a pretrained model, users don't need to manually annotate cracks or generate masks for each image.
 
 Project Inspiration and Code References:
