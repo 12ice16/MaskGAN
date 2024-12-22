@@ -1,80 +1,160 @@
-"""General-purpose test script for image-to-image translation.
 
-Once you have trained your model with train.py, you can use this script to test the model.
-It will load a saved model from '--checkpoints_dir' and save the results to '--results_dir'.
 
-It first creates model and dataset given the option. It will hard-code some parameters.
-It then runs inference for '--num_test' images and save results to an HTML file.
-
-Example (You need to train models first or download pre-trained models from our website):
-    Test a CycleGAN model (both sides):
-        python test.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan
-
-    Test a CycleGAN model (one side only):
-        python test.py --dataroot datasets/horse2zebra/testA --name horse2zebra_pretrained --model test --no_dropout
-
-    The option '--model test' is used for generating CycleGAN results only for one side.
-    This option will automatically set '--dataset_mode single', which only loads the images from one set.
-    On the contrary, using '--model cycle_gan' requires loading and generating results in both directions,
-    which is sometimes unnecessary. The results will be saved at ./results/.
-    Use '--results_dir <directory_path_to_save_result>' to specify the results directory.
-
-    Test a pix2pix model:
-        python test.py --dataroot ./datasets/facades --name facades_pix2pix --model pix2pix --direction BtoA
-
-See options/base_options.py and options/test_options.py for more test options.
-See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/tips.md
-See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md
-"""
 import os
-from options.test_options import TestOptions
-from data import create_dataset
-from models import create_model
-from util.visualizer import save_images
-from util import html
+import random
+import shutil
+import time
 
-try:
-    import wandb
-except ImportError:
-    print('Warning: wandb package cannot be found. The option "--use_wandb" will result in error.')
+import cv2
+
+from PIL import Image
+from matplotlib import pyplot as plt
+from torch import nn as nn
+from torch.nn import functional as F
+from pathlib import Path
+
+from tqdm import tqdm
+
+import torch
+
+import torch
+import numpy as np
+
+
+
+class GenCrack(nn.Module):
+
+    def __init__(self,G_pt,img_hw=[256,256]):
+
+        super().__init__()
+        from torchvision import transforms as transforms
+
+        self.device=torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.netG = torch.load(G_pt).to(self.device)
+        transform_list=[transforms.ToTensor(),
+                                           transforms.Grayscale(num_output_channels=1),
+                                           transforms.Resize(img_hw),
+                                           transforms.Normalize([0.415],[0.25])]
+
+        if img_hw[0] > 0  and img_hw[1]>0:
+            transform_list.insert(2, transforms.Resize(img_hw))
+
+        self.transform_list = transforms.Compose(transform_list)
+
+        cv_transform_list=[transforms.ToPILImage(),
+                                                 transforms.ToTensor(),
+                                           transforms.Grayscale(num_output_channels=1),
+                                           transforms.Resize(img_hw),
+                                           transforms.Normalize([0.5],[0.5])]
+
+        if img_hw[0] > 0  and img_hw[1]>0:
+            cv_transform_list.insert(2, transforms.Resize(img_hw))
+
+        self.cv_transform = transforms.Compose(cv_transform_list)
+
+
+
+    def forward(self,img0s):
+        imgs_org_size = []
+        if isinstance(img0s[0],str):
+            imgs=[]
+            for img_path in img0s:
+                img=Image.open(img_path)
+                imgs_org_size.append([img.size[1],img.size[0]])
+                imgs.append(self.transform_list(img))
+            img0s=torch.stack(imgs)
+        elif isinstance(img0s,list):
+            imgs=[]
+            for img in img0s:
+                imgs_org_size.append(img.shape[:2])
+                imgs.append(self.cv_transform(np.array(img)))
+            img0s=torch.stack(imgs)
+        elif isinstance(img0s,torch.Tensor):
+            for img in img0s:
+                imgs_org_size.append(img.shape[-2:])
+
+
+        with torch.no_grad():
+            G_masks,G_imgs=self.netG(img0s.to(self.device))
+
+        resized_g_imgs=[]
+        resized_g_masks=[]
+        org_imgs=[]
+        for img,mask,org_hw in zip(G_imgs,G_masks,imgs_org_size):
+            original_height, original_width=org_hw
+            resized_img = F.interpolate(img.unsqueeze(0),size=(original_height, original_width), mode='bilinear')
+            resized_mask = F.interpolate(mask.unsqueeze(0),size=(original_height, original_width), mode='bilinear')
+
+            resized_img=((resized_img.cpu().squeeze().numpy()+1)/2*255).astype(np.uint8)
+            resized_mask=((resized_mask.cpu().squeeze().numpy()+1)/2*255).astype(np.uint8)
+
+            resized_g_imgs.append(resized_img)
+            resized_g_masks.append(resized_mask)
+
+            org_imgs.append(((img0s.cpu().squeeze().numpy()+1)/2*255).astype(np.uint8))
+
+
+        return resized_g_imgs,resized_g_masks,org_imgs
+
+
+def gen_crack_mask(img_dir,g_pt,save_dir,rand_rename=False,repeat_times=1,bs=1,gen_suffix='_gen'):
+
+    save_img_dir=os.path.join(save_dir,'img')
+    save_mask_dir=os.path.join(save_dir,'mask')
+    os.makedirs(save_img_dir,exist_ok=True)
+    os.makedirs(save_mask_dir,exist_ok=True)
+
+    gen_crack_mask=GenCrack(g_pt)
+
+    if isinstance(img_dir,str):
+        img_suffix = ('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff')
+        image_files = [os.path.join(img_dir, f) for f in os.listdir(img_dir) if f.lower().endswith(img_suffix)]
+    elif isinstance(img_dir,list):
+        img_suffix = ('.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff')
+        image_files = [f for f in img_dir if f.lower().endswith(img_suffix)]
+    elif isinstance(img_dir, torch.Tensor):
+        image_files = img_dir
+    else:
+        print(f'error')
+
+    for _ in range(repeat_times):
+        for i in tqdm(range(0, len(image_files), bs)):
+            batch_paths = image_files[i:i + bs]
+            batch_datas=[cv2.imread(f,0) for f in batch_paths]
+
+
+            cracked_imgs, masks,img_orgs = gen_crack_mask.forward(batch_datas)
+            for j in range(len(cracked_imgs)):
+                f1=batch_datas[j]
+                cracked_img=cracked_imgs[j]
+                mask=masks[j]
+                if rand_rename:
+                    time_str=time.strftime('%H%H%S',time.localtime())
+                    new_name_stem=str(random.randint(0,999999)).zfill(6)+time_str
+                else:
+                    new_name_stem=os.path.splitext(os.path.basename(batch_paths[j]))[0]+gen_suffix
+
+                save_img_path=os.path.join(save_img_dir,f'{new_name_stem}.png')
+                save_mask_path=os.path.join(save_mask_dir,f'{new_name_stem}_mask.png')
+                cv2.imwrite(save_img_path, cracked_img)
+                cv2.imwrite(save_mask_path, mask)
+
+
+                cv2.imwrite(os.path.join(save_img_dir,f'{new_name_stem}_org.png'), img_orgs[j])
 
 
 if __name__ == '__main__':
-    opt = TestOptions().parse()  # get test options
-    # hard-code some parameters for test
-    opt.num_threads = 0   # test code only supports num_threads = 0
-    opt.batch_size = 1    # test code only supports batch_size = 1
-    opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
-    opt.no_flip = True    # no flip; comment this line if results on flipped images are needed.
-    opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.
-    dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
-    model = create_model(opt)      # create a model given opt.model and other options
-    model.setup(opt)               # regular setup: load and print networks; create schedulers
 
-    # initialize logger
-    if opt.use_wandb:
-        wandb_run = wandb.init(project=opt.wandb_project_name, name=opt.name, config=opt) if not wandb.run else wandb.run
-        wandb_run._label(repo='CycleGAN-and-pix2pix')
+    g_pt='gan_pt/latest_net_G.pth'
+    img_dir='test_imgs_dir'
+    save_dir='gen_imgs'
 
-    # create a website
-    web_dir = os.path.join(opt.results_dir, opt.name, '{}_{}'.format(opt.phase, opt.epoch))  # define the website directory
-    if opt.load_iter > 0:  # load_iter is 0 by default
-        web_dir = '{:s}_iter{:d}'.format(web_dir, opt.load_iter)
-    print('creating web directory', web_dir)
-    webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s, Epoch = %s' % (opt.name, opt.phase, opt.epoch))
-    # test with eval mode. This only affects layers like batchnorm and dropout.
-    # For [pix2pix]: we use batchnorm and dropout in the original pix2pix. You can experiment it with and without eval() mode.
-    # For [CycleGAN]: It should not affect CycleGAN as CycleGAN uses instancenorm without dropout.
-    if opt.eval:
-        model.eval()
-    for i, data in enumerate(dataset):
-        if i >= opt.num_test:  # only apply our model to opt.num_test images.
-            break
-        model.set_input(data)  # unpack data from data loader
-        model.test()           # run inference
-        visuals = model.get_current_visuals()  # get image results
-        img_path = model.get_image_paths()     # get image paths
-        if i % 5 == 0:  # save images to an HTML file
-            print('processing (%04d)-th image... %s' % (i, img_path))
-        save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize, use_wandb=opt.use_wandb)
-    webpage.save()  # save the HTML
+    if os.path.exists(save_dir):
+        shutil.rmtree(save_dir)
+
+
+    gen_crack_mask(img_dir,g_pt,save_dir,rand_rename=False,)
+
+
+
+
