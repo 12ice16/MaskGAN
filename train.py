@@ -24,7 +24,7 @@ import data
 
 
 FILE = Path(__file__).resolve()
-ROOT = FILE.parents[1]  # YOLOv5 root directory
+ROOT = FILE.parents[1]  #  root directory
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
@@ -35,8 +35,7 @@ def parse_opt(known=False):
     parser = argparse.ArgumentParser()
     """Define the common options that are used in both training and test."""
     # basic parameters
-    parser.add_argument('--dataroot', default=r'H:\datatemp\crack_Gan_2x_20240816', help='path to images (should have subfolders trainA, trainB,trainB_masks)')
-    # parser.add_argument('--dataroot', default='crack_data', help='path to images (should have subfolders trainA, trainB,trainB_masks)')
+    parser.add_argument('--dataroot', default=r'H:\datatemp\crack_Gan', help='path to images (should have subfolders trainA, trainB,trainB_masks)')
     parser.add_argument('--name', type=str, default='', help='')
     parser.add_argument('--display_port', type=int, default=8901, help='visdom port of the web display')
 
@@ -47,24 +46,24 @@ def parse_opt(known=False):
     parser.add_argument('--lambda_GA', type=float, default=0.80, help='weight for GA loss (A -> B )')
     parser.add_argument('--lambda_GB', type=float, default=1.0, help='weight for GB loss (B -> A)')
 
-    parser.add_argument('--lambda_ColorConsistency', type=float, default=0.0, help='颜色一致性损失系数，为0，不计算， 3通道图使用')
-    parser.add_argument('--lambda_BrightnessConsistency', type=float, default=0.5, help='亮度一致性损失系数，为0，不计算，')
+    parser.add_argument('--lambda_ColorConsistency', type=float, default=0.0, help='use for RGB')
+    parser.add_argument('--lambda_BrightnessConsistency', type=float, default=0.5, help='use for gray img')
     parser.add_argument('--patch_loss_model', type=str, default='pro', help='patch loss model,   "ssim"   "pro" ')
-    parser.add_argument('--ssim_alpha', type=float, default=1.0, help='SSIM亮度因子，')
-    parser.add_argument('--ssim_beta', type=float, default=1.0, help='SSIM对比度因子')
-    parser.add_argument('--ssim_gamma', type=float, default=1.0, help='SSIM结构因子')
+    parser.add_argument('--ssim_alpha', type=float, default=1.0, help='')
+    parser.add_argument('--ssim_beta', type=float, default=1.0, help='')
+    parser.add_argument('--ssim_gamma', type=float, default=1.0, help='')
 
-    parser.add_argument('--num_subimages', type=int, default=-1, help='局部损失，patch个数,如果等于0，则局部损失L_local=0，如果小于0，则计算整图的ssim。')
-    parser.add_argument('--subimage_size', type=tuple, default=(32,32), help='局部损失的尺寸')
-    parser.add_argument('--binary_thr', type=float, default=0.8, help='mask 二值化阈值')
-    parser.add_argument('--img_mean_percent', type=float, default=0.5, help='一致性损失中img_mean的百分比，0-1之间')
+    parser.add_argument('--num_subimages', type=int, default=-1, help='patch number for local loss')
+    parser.add_argument('--subimage_size', type=tuple, default=(32,32), help='patch size for local loss')
+    parser.add_argument('--binary_thr', type=float, default=0.8, help='')
+    parser.add_argument('--img_mean_percent', type=float, default=0.5, help='')
 
     parser.add_argument('--DG_cfg', type=str, default='build_model/model_cfg/D_net.yaml',help='D_net model config yaml')
     parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
     parser.add_argument('--checkpoints_dir', type=str, default='./checkpoints', help='models are saved here')
 
     # model parameters
-    parser.add_argument('--crack_star_epoch', type=int,default= 70,  help="多少epeoch后开始使用")
+    parser.add_argument('--crack_star_epoch', type=int,default= 70,  help="number of initialized epochs")
 
     # chose model
     parser.add_argument('--n_epochs', type=int, default=50, help='number of epochs with the initial learning rate')
@@ -116,7 +115,7 @@ def parse_opt(known=False):
     parser.add_argument('--suffix', default='', type=str, help='customized suffix: opt.name = opt.name + suffix: e.g., {model}_{netG}_size{load_size}')
     # wandb parameters
     parser.add_argument('--use_wandb', action='store_true', help='if specified, then init wandb logging')
-    parser.add_argument('--wandb_project_name', type=str, default='CycleGAN-and-pix2pix', help='specify wandb project name')
+    parser.add_argument('--wandb_project_name', type=str, default='', help='specify wandb project name')
 
     parser.add_argument('--amp', type=bool, default=False, help='weather use amp to training')
 
